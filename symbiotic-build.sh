@@ -528,7 +528,6 @@ if [ $FROM -le 7 ]; then
 		$INSTR\
 		$CPACHECKER \
 		$ULTIAUTO \
-		include/klee/klee.h \
 		include/symbiotic.h \
 		lib.c \
 		memalloc.c \
