@@ -438,22 +438,26 @@ def compile_to_llvm(source, is32bit = False, output = None):
     return llvmfile
 
 def get_undefined(bitcode):
-    cmd = ['llvm-nm', '-undefined-only', '-just-symbol-name', bitcode]
+    cmd = ['llvm-nm', '-undefined-only', bitcode]
     dbg(' '.join(cmd))
 
     global current_process
-    current_process = Popen(cmd, stdout=PIPE, stderr=STDOUT)
+    current_process = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
-    out, err = current_process.communicate()
-    assert err is None
-
+    out, errs = current_process.communicate()
     ret = current_process.poll()
     current_process = None
 
     if ret != 0:
-        err('Failed getting undefined symbols')
+        err('Failed getting undefined symbols: {0}'.format(errs))
 
-    return out.split()
+    undefs = []
+    for ln in out.splitlines():
+        # now we have ['U', 'func_name']
+
+        undefs.append(ln.split()[1])
+
+    return undefs
 
 def get_libraries(opts, which=[]):
     files = []
