@@ -530,8 +530,7 @@ if [ $FROM -le 7 ]; then
 		$CPACHECKER \
 		$ULTIAUTO \
 		include/symbiotic.h \
-		lib.c \
-		memalloc.c \
+		lib/*.c
 		LLVM_SLICER_VERSION \
 		LLVM_NEW_SLICER_VERSION \
 		MINISAT_VERSION \
