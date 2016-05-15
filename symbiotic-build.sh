@@ -354,7 +354,7 @@ fi
 
 if [ $FROM -le 4 ]; then
 	# build klee
-	git_clone_or_pull git://github.com/staticafi/klee.git -b 3.0.3 klee || exitmsg "Cloning failed"
+	git_clone_or_pull git://github.com/staticafi/klee.git klee -b 3.0.3  || exitmsg "Cloning failed"
 
 	mkdir -p klee-build/
 	cd klee-build/
@@ -530,7 +530,7 @@ if [ $FROM -le 7 ]; then
 		$CPACHECKER \
 		$ULTIAUTO \
 		include/symbiotic.h \
-		lib/*.c
+		lib/*.c\
 		LLVM_SLICER_VERSION \
 		LLVM_NEW_SLICER_VERSION \
 		MINISAT_VERSION \
