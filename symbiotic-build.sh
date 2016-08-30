@@ -42,12 +42,6 @@ export SYMBIOTIC_ENV=1
 
 export LD_LIBRARY_PATH="$PREFIX/lib:$LD_LIBRARY_PATH"
 
-# klee does not handle builts with abi::cxx11 yet, so we must
-# build llvm with the old abi too (if the compiler does
-# not support this, then it will ignore the definition
-export CPPFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
-
-
 FROM='0'
 NO_LLVM='0'
 UPDATE=
@@ -79,23 +73,17 @@ while [ $# -gt 0 ]; do
 		'slicer')
 			FROM='1'
 		;;
-		'minisat')
+		'seahorn')
 			FROM='2'
 		;;
-		'stp')
+		'witness')
 			FROM='3'
 		;;
-		'klee')
+		'scripts')
 			FROM='4'
 		;;
-		'witness')
-			FROM='5'
-		;;
-		'scripts')
-			FROM='6'
-		;;
 		'bin')
-			FROM='7'
+			FROM='5'
 		;;
 		'no-llvm')
 			NO_LLVM=1
@@ -146,16 +134,6 @@ check()
 		echo "llvm-3.2 needs python 2 to build"
 		exit 1
 	fi
-
-	if ! bison --version &>/dev/null; then
-		echo "STP needs bison program"
-		exit 1
-	fi
-
-	if ! flex --version &>/dev/null; then
-		echo "STP needs flex program"
-		exit 1
-	fi
 }
 
 # check if we have everything we need
@@ -186,19 +164,19 @@ build()
 	return 0
 }
 
-# download llvm-3.8 and unpack
+# download llvm-3.6 and unpack
 if [ $FROM -eq 0 -a $NO_LLVM -ne 1 ]; then
-	if [ ! -d 'llvm-3.8.0' ]; then
-		wget http://llvm.org/releases/3.8.0/llvm-3.8.0.src.tar.xz || exit 1
-		wget http://llvm.org/releases/3.8.0/cfe-3.8.0.src.tar.xz || exit 1
+	if [ ! -d 'llvm-3.6.2' ]; then
+		wget http://llvm.org/releases/3.6.2/llvm-3.6.2.src.tar.xz || exit 1
+		#wget http://llvm.org/releases/3.8.0/cfe-3.8.0.src.tar.xz || exit 1
 
-		tar -xf llvm-3.8.0.src.tar.xz || exit 1
-		tar -xf cfe-3.8.0.src.tar.xz || exit 1
+		tar -xf llvm-3.6.2.src.tar.xz || exit 1
+		#tar -xf cfe-3.8.0.src.tar.xz || exit 1
 
                 # rename llvm folder
-                mv llvm-3.8.0.src llvm-3.8.0
+                mv llvm-3.6.2.src llvm-3.6.2
 		# move clang to llvm/tools and rename to clang
-		mv cfe-3.8.0.src llvm-3.8.0/tools/clang
+		#mv cfe-3.8.0.src llvm-3.8.0/tools/clang
 	fi
 
 	mkdir -p llvm-build-cmake
@@ -208,7 +186,7 @@ if [ $FROM -eq 0 -a $NO_LLVM -ne 1 ]; then
 	if [ ! -d CMakeFiles ]; then
 		echo 'we should definitely build RelWithDebInfo here, no?'
 		echo 'N.B. we strip below anyway, so why not Release actually?'
-		cmake ../llvm-3.8.0 \
+		cmake ../llvm-3.6.2 \
 			-DCMAKE_BUILD_TYPE=Release\
 			-DLLVM_INCLUDE_EXAMPLES=OFF \
 			-DLLVM_INCLUDE_TESTS=OFF \
@@ -220,10 +198,11 @@ if [ $FROM -eq 0 -a $NO_LLVM -ne 1 ]; then
 	fi
 
 	# build llvm
-	ONLY_TOOLS='opt clang llvm-link llvm-dis llvm-nm' build
+	ONLY_TOOLS='opt llvm-link llvm-dis llvm-nm' build
 
 	# we need these binaries in symbiotic
-	cp bin/clang $PREFIX/bin/clang || exit 1
+	# we have clang with SeaHorn
+	#cp bin/clang $PREFIX/bin/clang || exit 1
 	cp bin/opt $PREFIX/bin/opt || exit 1
 	cp bin/llvm-link $PREFIX/bin/llvm-link || exit 1
 	cp bin/llvm-nm $PREFIX/bin/llvm-nm || exit 1
@@ -232,8 +211,8 @@ fi
 
 export LLVM_DIR=$ABS_RUNDIR/llvm-build-cmake/share/llvm/cmake/
 
-rm -f llvm-3.8.0.src.tar.xz &>/dev/null || exit 1
-rm -f cfe-3.8.0.src.tar.xz &>/dev/null || exit 1
+rm -f llvm-3.6.2.src.tar.xz &>/dev/null || exit 1
+#rm -f cfe-3.8.0.src.tar.xz &>/dev/null || exit 1
 
 git_clone_or_pull()
 {
@@ -284,7 +263,7 @@ if [ $FROM -le 1 ]; then
 	cd "$SRCDIR/dg" || exitmsg "Cloning failed"
 	if [ ! -d CMakeFiles ]; then
 		cmake . \
-			-DLLVM_SRC_PATH="$ABS_RUNDIR/llvm-3.8.0/" \
+			-DLLVM_SRC_PATH="$ABS_RUNDIR/llvm-3.6.2/" \
 			-DLLVM_BUILD_PATH="$ABS_RUNDIR/llvm-build-cmake/" \
 			-DLLVM_DIR=$LLVM_DIR \
 			-DCMAKE_INSTALL_PREFIX=$PREFIX \
@@ -297,115 +276,6 @@ if [ $FROM -le 1 ]; then
 	git rev-parse --short=8 HEAD > $PREFIX/LLVM_NEW_SLICER_VERSION
 	cd -
 fi
-
-if [ $FROM -le 2 ]; then
-	git_clone_or_pull git://github.com/niklasso/minisat.git minisat
-	cd minisat
-	(build lr && make prefix=$PREFIX install-headers) || exit 1
-	cp build/release/lib/libminisat.a $PREFIX/lib/ || exit 1
-
-	# we need stp version
-	git rev-parse --short=8 HEAD > $PREFIX/MINISAT_VERSION
-
-	cd -
-fi
-
-if [ $FROM -le 3 ]; then
-	git_clone_or_pull git://github.com/stp/stp.git stp
-	cd stp || exitmsg "Cloning failed"
-	cmake . -DCMAKE_INSTALL_PREFIX=$PREFIX \
-		-DCMAKE_CXX_FLAGS_RELEASE=-O2 \
-		-DCMAKE_C_FLAGS_RELEASE=-O2 \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DBUILD_SHARED_LIBS:BOOL=OFF \
-		-DENABLE_PYTHON_INTERFACE:BOOL=OFF || clean_and_exit 1 "git"
-
-	(build "OPTIMIZE=-O2 CFLAGS_M32=install" && make install) || exit 1
-
-	# we need stp version
-	git rev-parse --short=8 HEAD > $PREFIX/STP_VERSION
-
-	cd -
-fi
-
-if [ $FROM -le 4 -a $NO_LLVM -ne 1 ]; then
-	# we must build llvm once again with configure script (klee needs this)
-	mkdir -p llvm-build-configure || exitmsg "Creating building directory failed"
-	cd llvm-build-configure
-
-	# on some systems the libxml library is libxml2 library and
-	# the paths are mismatched. Use pkg-config in this case. If it won't
-	# work, user has work to do ^_^
-	if pkg-config --exists libxml-2.0; then
-		export CPPFLAGS="$CPPFLAGS `pkg-config --cflags libxml-2.0`"
-		export LDFLAGS="$LDFLAGS `pkg-config --libs libxml-2.0`"
-	fi
-
-	# configure llvm if not done yet
-	if [ ! -f config.log ]; then
-		../llvm-3.8.0/configure \
-			--enable-optimized --enable-assertions \
-			--enable-targets=x86 --enable-docs=no \
-			--enable-timestamps=no || clean_and_exit 1
-	fi
-
-	build || exit 1
-	cd -
-fi
-
-
-if [ $FROM -le 4 ]; then
-	# build klee
-	git_clone_or_pull "-b 3.0.5 --single-branch git://github.com/staticafi/klee.git" klee || exitmsg "Cloning failed"
-
-	mkdir -p klee-build/
-	cd klee-build/
-
-	if [ ! -f config.log ]; then
-	../klee/configure \
-		--prefix=$PREFIX \
-		--with-llvmsrc=`pwd`/../llvm-3.8.0 \
-		--with-llvmobj=`pwd`/../llvm-build-configure \
-		--with-stp=$PREFIX || clean_and_exit 1 "git"
-	fi
-
-	# clean runtime libs, it may be 32-bit from last build
-	make -C runtime clean 2>/dev/null
-	rm -f Release+Asserts/lib/kleeRuntimeIntrinsic.bc* 2>/dev/null
-	rm -f Release+Asserts/lib/klee-libc.bc* 2>/dev/null
-
-	# build 64-bit libs and install them to prefix
-	pwd
-	(build "ENABLE_SHARED=0" && make install) || exit 1
-
-	# clean 64-bit build and build 32-bit version of runtime library
-	make -C runtime clean \
-		|| exitmsg "Failed building klee 32-bit runtime library"
-	rm -f Release+Asserts/lib/kleeRuntimeIntrinsic.bc*
-	rm -f Release+Asserts/lib/klee-libc.bc*
-	make -C runtime/Intrinsic CFLAGS=-m32 ENABLE_SHARED=0 \
-		|| exitmsg "Failed building 32-bit klee runtime library"
-	make -C runtime/klee-libc CFLAGS=-m32 ENABLE_SHARED=0 \
-		|| exitmsg "Failed building 32-bit klee runtime library"
-
-	# copy 32-bit library version to prefix
-	mkdir -p $PREFIX/lib32/klee/runtime
-	cp Release+Asserts/lib/kleeRuntimeIntrinsic.bc \
-		$PREFIX/lib32/klee/runtime/kleeRuntimeIntrinsic.bc \
-		|| exitmsg "Did not build 32-bit klee runtime lib"
-	cp Release+Asserts/lib/klee-libc.bc \
-		$PREFIX/lib32/klee/runtime/klee-libc.bc \
-		|| exitmsg "Did not build 32-bit klee runtime lib"
-
-
-	# we need klee version
-	cd -
-	cd klee || exit 1
-	git rev-parse --short=8 HEAD > $PREFIX/KLEE_VERSION
-
-	cd -
-fi
-
 download_tar()
 {
 	wget "$1" || exit 1
@@ -413,6 +283,20 @@ download_tar()
 	tar xf "$BASENAME" || exit 1
 	rm -f "BASENAME"
 }
+
+if [ $FROM -le 2 ]; then
+	# get seahorn -- version from SV-COMP
+	if [ ! -d SeaHorn ]; then
+		download_tar https://sv-comp.sosy-lab.org/2016/downloads/SeaHorn-0.1.0-Linux-x86_64.tar.gz
+		mv SeaHorn-0.1.0-Linux-x86_64 SeaHorn
+	fi
+
+	cd SeaHorn
+	cp bin/* $PREFIX/bin
+	cp -r include/* $PREFIX/include
+	cp -r lib/* $PREFIX/lib
+	cd -
+fi
 
 get_cpa()
 {
@@ -428,7 +312,7 @@ get_ultimize()
 	fi
 }
 
-if [ $FROM -le 5 ]; then
+if [ $FROM -le 3 ]; then
 	if [ $WITH_CPA -eq 1 ]; then
 		get_cpa
 		rsync -a CPAchecker-1.4-unix/ $PREFIX/CPAchecker/
@@ -439,30 +323,30 @@ if [ $FROM -le 5 ]; then
 	fi
 fi
 
-if [ $FROM -le 6 ]; then
+if [ $FROM -le 4 ]; then
 	# download scripts
 	git_submodule_init
 
-	cd "$SRCDIR/svc15" || exitmsg "Cloning failed"
-	if [ ! -d CMakeFiles ]; then
-		cmake . \
-			-DLLVM_SRC_PATH="$ABS_RUNDIR/llvm-3.8.0/" \
-			-DLLVM_BUILD_PATH="$ABS_RUNDIR/llvm-build-cmake/" \
-			-DLLVM_DIR=$LLVM_DIR \
-			-DCMAKE_INSTALL_PREFIX=$PREFIX \
-			|| clean_and_exit 1 "git"
-	fi
-
-	(build && make install) || exit 1
-
-	git rev-parse --short=8 HEAD > $PREFIX/SVC_SCRIPTS_VERSION
-	cd -
+	# cd "$SRCDIR/svc15" || exitmsg "Cloning failed"
+	# if [ ! -d CMakeFiles ]; then
+	# 	cmake . \
+	# 		-DLLVM_SRC_PATH="$ABS_RUNDIR/llvm-3.8.0/" \
+	# 		-DLLVM_BUILD_PATH="$ABS_RUNDIR/llvm-build-cmake/" \
+	# 		-DLLVM_DIR=$LLVM_DIR \
+	# 		-DCMAKE_INSTALL_PREFIX=$PREFIX \
+	# 		|| clean_and_exit 1 "git"
+	# fi
+	#
+	# (build && make install) || exit 1
+	#
+	# git rev-parse --short=8 HEAD > $PREFIX/SVC_SCRIPTS_VERSION
+	# cd -
 
 	cd "$SRCDIR/LLVMInstrumentation" || exitmsg "Cloning failed"
 	if [ ! -d CMakeFiles ]; then
 		./bootstrap-json.sh || exitmsg "Failed generating json files"
 		cmake . \
-			-DLLVM_SRC_PATH="$ABS_RUNDIR/llvm-3.8.0/" \
+			-DLLVM_SRC_PATH="$ABS_RUNDIR/llvm-3.6.2/" \
 			-DLLVM_BUILD_PATH="$ABS_RUNDIR/llvm-build-cmake/" \
 			-DLLVM_DIR=$LLVM_DIR \
 			-DCMAKE_INSTALL_PREFIX=$PREFIX \
@@ -489,21 +373,18 @@ if [ $FROM -le 6 ]; then
 fi
 
 
-if [ $FROM -le 7 ]; then
+if [ $FROM -le 5 ]; then
 	cd $PREFIX || exitmsg "Whoot? prefix directory not found! This is a BUG, sir..."
 
+	ln -s /usr/bin/python bin/python
 	# create git repository and add all files that we need
 	# then remove the rest and create distribution
-	BINARIES="bin/clang bin/opt bin/klee bin/llvm-link bin/llvm-nm bin/llvm-slicer"
+	BINARIES="bin/clang-3.6 bin/opt bin/llvm-link bin/llvm-nm bin/llvm-slicer\
+		  bin/sea bin/seahorn bin/seaopt bin/seapp bin/sea_svcomp\
+		  bin/spacer bin/z3 bin/stats.py bin/python"
 	LIBRARIES="\
-		lib/libLLVMdg.so lib/libPTA.so lib/libRD.so\
-		lib/LLVMsvc15.so \
-		lib/klee/runtime/kleeRuntimeIntrinsic.bc \
-		lib32/klee/runtime/kleeRuntimeIntrinsic.bc\
-		lib/klee/runtime/klee-libc.bc\
-		lib32/klee/runtime/klee-libc.bc"
-#		lib/LLVMSlicer.so
-	SCRIPTS="build-fix.sh path_to_ml.pl symbiotic"
+		lib/libLLVMdg.so lib/libPTA.so lib/libRD.so"
+	SCRIPTS="symbiotic"
 	INSTR="bin/LLVMinstr\
 	       instrumentation/null_deref/config.json\
 	       instrumentation/null_deref/null_deref.c\
@@ -531,8 +412,9 @@ if [ $FROM -le 7 ]; then
 		$INSTR\
 		$CPACHECKER \
 		$ULTIAUTO \
-		include/symbiotic.h \
-		lib/*.c \
+		# include/symbiotic.h \
+		`find lib -type f` \
+		`find include -type f` \
 		LLVM_NEW_SLICER_VERSION \
 		MINISAT_VERSION \
 		SVC_SCRIPTS_VERSION \

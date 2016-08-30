@@ -53,7 +53,7 @@ where OPTS can be following:
     --libc=klee            Link klee-libc.bc to the module
     --no-lib               Don't link lib.bc to the module
     --slicing-criterion=C  Slice to slicing criterion (function call-sites) 'C'
-                           (default is '__assert_fail')
+                           (default is '__VERIFIER_error')
     --repeat-slicing=N     Repeat slicing N times
     --prp=property         Specify property that should hold. It is either LTL formula
                            as specivied by SV-COMP, or one of following shortcuts:
@@ -81,23 +81,8 @@ where OPTS can be following:
 
 # define and compile regular expressions for parsing klee's output
 patterns = {
-    'ASSERTIONFAILED' : re.compile('.*ASSERTION FAIL:.*'),
-    'ESTPTIMEOUT' : re.compile('.*query timed out (resolve).*'),
-    'EKLEETIMEOUT' : re.compile('.*HaltTimer invoked.*'),
-    'EEXTENCALL' : re.compile('.*failed external call.*'),
-    'ELOADSYM' : re.compile('.*ERROR: unable to load symbol.*'),
-    'EINVALINST' : re.compile('.*LLVM ERROR: Code generator does not support.*'),
-    'EKLEEASSERT' : re.compile('.*klee: .*Assertion .* failed.*'),
-    'EINITVALS' : re.compile('.*unable to compute initial values.*'),
-    'ESYMSOL' : re.compile('.*unable to get symbolic solution.*'),
-    'ESILENTLYCONCRETIZED' : re.compile('.*silently concretizing.*'),
-    'ECONCRETIZED' : re.compile('.* concretized symbolic size.*'),
-    'EEXTRAARGS' : re.compile('.*calling .* with extra arguments.*'),
-    'EABORT' : re.compile('.*abort failure.*'),
-    #'EGENERAL' : re.compile('.*now ignoring this error at this location.*'),
-    'EMALLOC' : re.compile('.*found huge malloc, returning 0.*'),
-    'ESKIPFORK' : re.compile('.*skipping fork.*'),
-    'EKILLSTATE' : re.compile('.*killing.*states (over memory cap).*')
+    'FALSE' : re.compile('.*BRUNCH_STAT Result FALSE.*'),
+    'TRUE'  : re.compile('.*BRUNCH_STAT Result TRUE.*'),
 }
 
 supported_properties = {
@@ -411,7 +396,7 @@ def compile_to_llvm(source, is32bit = False, output = None):
     """
     symbiotic_dir = get_symbiotic_dir()
 
-    cmd = ['clang', '-g', '-c', '-emit-llvm', '-include', 'symbiotic.h']
+    cmd = ['clang-3.6', '-g', '-c', '-emit-llvm']
 
     global CFLAGS
     global CPPFLAGS
@@ -498,15 +483,7 @@ def check_llvmfile(llvmfile):
 def parse_klee_output(line, valid_deref = False):
     for (key, pattern) in patterns.iteritems():
         if pattern.match(line):
-            # return True so that we know we should terminate
-            if key == 'ASSERTIONFAILED':
-                return key
-            elif valid_deref and key == 'EMEMERROR':
-                return 'ASSERTIONFAILED (valid-deref)'
-            elif valid_deref and key == 'EFREE':
-                return 'ASSERTIONFAILED (valid-free)'
-            else:
-                return key
+            return key
 
     return None
 
@@ -542,10 +519,15 @@ class KleeWatch(ProcessWatch):
             dbg(line, 'all', False)
 
 def run_symexe(llvmfile, opts, timeout = 0):
-    cmd = ['klee', '-exit-on-error-type=Assert', '-write-paths',
-           '-solver-optimize-divides=false', '-dump-states-on-halt=0',
-           '-output-stats=0',#'-only-output-states-covering-new=1',
-           '-max-time={0}'.format(timeout), llvmfile]
+    cmd = ['sea_svcomp', '--cpu={0}'.format(timeout)]
+    if opts.prp_file:
+        cmd.append('--spec={0}'.format(prp_file))
+    if opts.is32bit:
+        cmd.append('-m32')
+    else:
+        cmd.append('-m64')
+
+    cmd.append(llvmfile)
 
     dbg(' '.join(cmd))
 
@@ -567,7 +549,7 @@ def run_symexe(llvmfile, opts, timeout = 0):
 
     found = watch.found()
     if ret != 0:
-        found += ' EKLEEERROR'
+        found += ' ERROR'
 
     return found
 
@@ -576,15 +558,15 @@ def report_results(res):
     result = res
     color = 'BROWN'
 
-    if res.startswith('ASSERTIONFAILED'):
+    if res.startswith('FALSE'):
         result = 'FALSE'
         color = 'RED'
-    elif res == '':
+    elif res == 'TRUE':
         result = 'TRUE'
         color='GREEN'
     elif res == 'TIMEOUT':
         result = 'TIMEOUT'
-    elif 'EKLEEERROR' in res:
+    elif 'ERROR' in res:
         result = 'ERROR'
         color='RED'
     else:
@@ -603,9 +585,10 @@ class SymbioticOptions(object):
     def __init__(self, is32bit = True, noslice=False, timeout=0):
         self.is32bit = is32bit
         self.prp = []
+        self.prp_file = None
         self.noslice = noslice
         self.malloc_never_fails = False
-        self.noprepare = False
+        self.noprepare = True
         self.nolinkundef = False
         self.timeout = 0
         self.add_libc = False
@@ -619,7 +602,7 @@ class SymbioticOptions(object):
         self.source_is_bc = False
         self.optlevel = ["before", "after"]
         self.slicer_pta = 'old'
-        self.slicing_criterion = '__assert_fail'
+        self.slicing_criterion = '__VERIFIER_error'
         self.repeat_slicing = 1
         # these files will be linked unconditionally
         self.link_files = []
@@ -811,7 +794,7 @@ class Symbiotic(object):
 
         self.llvmfile = output
 
-    def run(self, criterion = '__assert_fail'):
+    def run(self, criterion = '__VERIFIER_error'):
         try:
             return self._run(criterion);
         except KeyboardInterrupt:
@@ -820,7 +803,7 @@ class Symbiotic(object):
                 current_process.kill()
             print('Interrupted...')
 
-    def _run(self, criterion = '__assert_fail'):
+    def _run(self, criterion = '__VERIFIER_error'):
         # start counting time
         global last_time
         last_time = time();
@@ -956,18 +939,16 @@ def generate_graphml(path, saveto):
     if ret != 0:
         dbg('Generating witness failed')
 
-def generate_counterexample(bindir, saveto = None):
-    abd = os.path.abspath(bindir)
-    for path in os.listdir('{0}/klee-last'.format(abd)):
-        if 'assert' in path:
-            pth = os.path.abspath('{0}/klee-last/{1}.path'.format(abd, path[:-11]))
-            generate_graphml(pth, saveto)
-            break
+def generate_counterexample(bcfile, saveto = None):
+    if saveto:
+        os.rename('{0}.xml'.format(bcfile), saveto)
 
 def get_prp(prp):
+    prp_file = None
     # if property is given in file, read the file
     epath = os.path.expanduser(prp)
     if os.path.isfile(epath):
+        prp_file = epath
         prp_list = []
         f = open(epath, 'r')
         for line in f.readlines():
@@ -981,7 +962,7 @@ def get_prp(prp):
     # it is not a file, so it is given as a string
     # FIXME: this does not work for properties given
     # as LTL (there are spaces)
-    return prp.split()
+    return (prp_file, prp.split())
 
 def parse_command_line():
     options = SymbioticOptions()
@@ -1060,7 +1041,7 @@ def parse_command_line():
                 if not o in ["before", "after", "before-O2", "none"]:
                     err('Unknown optimization level, try --help')
         elif opt == '--prp':
-            options.prp = get_prp(arg)
+            options.prp_file, options.prp = get_prp(arg)
             for prp in options.prp:
                 dbg('Property: {0}'.format(prp))
         elif opt == '--pta':
@@ -1127,20 +1108,13 @@ if __name__ == "__main__":
                 opts.prp = []
 
                 for prp in prps:
-                    prp_key = supported_properties[prp]
-                    opts.prp.append(prp_key)
-
-                    # for some properties we need to modify
-                    # parsing of the output
-                    if prp_key == 'VALID-DEREF':
+                    if prp_key != 'REACHCALL':
                         # we don't know to which locations
                         # we should slice, so suspend the slicing
                         # for now
                         dbg('Will not slice due to VALID-DEREF property')
                         opts.noslice = True
 
-                        patterns['EMEMERROR'] = re.compile('.*memory error: out of bound pointer.*')
-                        patterns['EFREE'] = re.compile('.*memory error: invalid pointer: free.*')
         except KeyError as ke:
             err('Unknown or unsupported property: {0}'.format(ke.message))
 
@@ -1156,7 +1130,7 @@ if __name__ == "__main__":
 
         if res == 'FALSE' or res == 'ASSERTIONFAILED':
             srcdir = os.path.dirname(symbiotic.llvmfile)
-            generate_counterexample(srcdir, opts.witness_output)
+            generate_counterexample(symbiotic.llvmfile, opts.witness_output)
     except Timeout:
         sys.stdout.flush()
         sys.stderr.flush()
