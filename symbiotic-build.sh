@@ -394,52 +394,6 @@ if [ $FROM -le 3 ]; then
 fi
 
 ######################################################################
-#   build LLVM using configure for KLEE
-######################################################################
-if [ $FROM -le 4 -a $NO_LLVM -ne 1 ]; then
-	# we must build llvm once again with configure script (klee needs this)
-	mkdir -p llvm-build-configure || exitmsg "Creating building directory failed"
-	cd llvm-build-configure
-
-	# on some systems the libxml library is libxml2 library and
-	# the paths are mismatched. Use pkg-config in this case. If it won't
-	# work, user has work to do ^_^
-	if pkg-config --exists libxml-2.0; then
-		export CPPFLAGS="$CPPFLAGS `pkg-config --cflags libxml-2.0`"
-		export LDFLAGS="$LDFLAGS `pkg-config --libs libxml-2.0`"
-	fi
-
-	# configure llvm if not done yet
-	if [ ! -f config.log ]; then
-		# llvm does not built with gcc-4, so use gcc-5 & g++-5 if available
-		if gcc --version 2>&1 | grep -q '[5-9]\..*'; then
-			CC=gcc
-			CXX=g++
-		elif which gcc-5 2>&1; then
-			CC=gcc-5
-			CXX=gcc++-5
-		elif which clang 2>&1; then
-			CC=clang
-			CXX=clang++
-		else
-			# let's see what happens
-			CC=gcc
-			CXX=g++
-		fi
-
-		$LLVM_SRC_PATH/configure \
-			CC=$CC CXX=$CXX \
-			--enable-optimized --enable-assertions \
-			--enable-targets=x86 --enable-docs=no \
-			--enable-timestamps=no || clean_and_exit 1
-	fi
-
-	build || exit 1
-	cd -
-fi
-
-
-######################################################################
 #   KLEE
 ######################################################################
 if [ $FROM -le 4 ]; then
@@ -449,13 +403,15 @@ if [ $FROM -le 4 ]; then
 	mkdir -p klee-build/
 	cd klee-build/
 
-	if [ ! -f config.log ]; then
-	../klee/configure \
-		--prefix=$PREFIX \
-		--without-zlib \
-		--with-llvmsrc=$LLVM_SRC_PATH \
-		--with-llvmobj=`pwd`/../llvm-build-configure \
-		--with-stp=$PREFIX || clean_and_exit 1 "git"
+	if [ ! -d CMakeFiles ]; then
+		cmake ../klee -DCMAKE_INSTALL_PREFIX=$PREFIX \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DKLEE_RUNTIME_BUILD_TYPE=Release+Asserts \
+			-DENABLE_SOLVER_STP=ON \
+			-DSTP_DIR=`pwd`/../stp
+			-DLLVM_CONFIG_BINARY=`pwd`/../llvm-build-cmake/bin/llvm-config \
+			-DENABLE_UNIT_TESTS=OFF \
+		|| clean_and_exit 1 "git"
 	fi
 
 	# clean runtime libs, it may be 32-bit from last build
@@ -472,9 +428,9 @@ if [ $FROM -le 4 ]; then
 		|| exitmsg "Failed building klee 32-bit runtime library"
 	rm -f Release+Asserts/lib/kleeRuntimeIntrinsic.bc*
 	rm -f Release+Asserts/lib/klee-libc.bc*
-	make -C runtime/Intrinsic CFLAGS=-m32 ENABLE_SHARED=0 \
+	make -C runtime/Intrinsic -f Makefile.cmake.bitcode CFLAGS=-m32 ENABLE_SHARED=0 \
 		|| exitmsg "Failed building 32-bit klee runtime library"
-	make -C runtime/klee-libc CFLAGS=-m32 ENABLE_SHARED=0 \
+	make -C runtime/klee-libc -f Makefile.cmake.bitcode CFLAGS=-m32 ENABLE_SHARED=0 \
 		|| exitmsg "Failed building 32-bit klee runtime library"
 
 	# copy 32-bit library version to prefix
