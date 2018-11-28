@@ -1,0 +1,25 @@
+language: cpp
+sudo: true
+env:
+  - LLVM=4.0
+  global:
+    - LLVM_CMAKE_CONFIG_DIR=lib/llvm-4.0/cmake
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-4.0 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+git:
+  submodules: false
+compiler:
+  - gcc
+install:
+  - git clone --depth 1 https://github.com/tomsik68/travis-llvm.git
+  - cd travis-llvm
+  - chmod +x travis-llvm.sh
+  - ./travis-llvm.sh ${LLVM}
+  - cd ..
+  - ./build.sh build-stp with-llvm=/usr -j2
+script:
+  - ./tests/run-tests.sh
