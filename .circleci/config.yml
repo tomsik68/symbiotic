@@ -1,0 +1,10 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: mchalupa/symbiotic
+    steps:
+      - checkout
+      - build:
+          name: Build the latest commit of Symbiotic
+          command: ./build.sh -j8
