@@ -8,3 +8,11 @@ jobs:
       - build:
           name: Build the latest commit of Symbiotic
           command: ./build.sh -j8
+workflows:
+  version: 2
+  build_test:
+    jobs:
+      - build:
+        filters:
+          branches:
+            - circleci
