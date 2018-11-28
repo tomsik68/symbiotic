@@ -5,7 +5,7 @@ jobs:
       - image: mchalupa/symbiotic
     steps:
       - checkout
-      - build:
+      - run:
           name: Build the latest commit of Symbiotic
           command: ./build.sh -j8
 workflows:
