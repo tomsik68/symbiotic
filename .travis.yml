@@ -32,15 +32,17 @@ addons:
 compiler:
   - clang
 
-script:
+install:
   - git clone --depth 1 https://github.com/tomsik68/travis-llvm.git
   - cd travis-llvm
   - chmod +x travis-llvm.sh
   - ./travis-llvm.sh ${LLVM}
   - cd ..
   - sudo ln -s /usr/include/asm-generic /usr/include/asm
-  - ./system-build.sh -j8
   - pip3 install --user benchexec
+
+script:
+  - ./system-build.sh -j8
   - PATH=$PATH:/home/travis/.local/bin
   - cd tests/
   - sudo chmod o+wt '/sys/fs/cgroup/cpuset/'
