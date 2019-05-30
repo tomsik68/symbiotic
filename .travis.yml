@@ -7,6 +7,8 @@ git:
   depth: 1
 
 env:
+  - LLVM=3.8
+  - LLVM=4.0
   - LLVM=5.0
 
 addons:
