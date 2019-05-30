@@ -1,7 +1,7 @@
 language: cpp
 sudo: true
 
-dist: xenial
+dist: trusty
 
 git:
   depth: 1
@@ -15,10 +15,10 @@ addons:
   apt:
     sources:
       # newer gcc and clang?
-      - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main'
+      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - ubuntu-toolchain-r-test
-      - sourceline: 'deb https://apt.kitware.com/ubuntu/ xenial main'
+      - sourceline: 'deb https://apt.kitware.com/ubuntu/ trusty main'
         key_url: 'https://apt.kitware.com/keys/kitware-archive-latest.asc'
     packages:
       - libc6-dev-i386
