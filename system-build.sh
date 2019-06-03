@@ -220,17 +220,16 @@ LLVM_TOOLS="opt clang llvm-link llvm-dis llvm-nm"
 export LLVM_PREFIX="$PREFIX/llvm-$LLVM_VERSION"
 
 mkdir -p $LLVM_PREFIX/bin
+pushd $LLVM_PREFIX/bin
 for T in $LLVM_TOOLS; do
 	TOOL=$(which $T || true)
 	if [ -z "${TOOL}" -o ! -x "${TOOL}" ]; then
 		exitmsg "Cannot find working $T binary".
 	fi
 
-	cp ${TOOL} $LLVM_PREFIX/bin
+	ln -sf ${TOOL}
 done
-
-mkdir -p $LLVM_PREFIX/lib
-cp -Lr $(dirname $(which clang))/../lib/clang/ $LLVM_PREFIX/lib/
+popd
 
 ######################################################################
 #   dg
