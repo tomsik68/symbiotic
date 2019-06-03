@@ -229,9 +229,6 @@ for T in $LLVM_TOOLS; do
 	cp ${TOOL} $LLVM_PREFIX/bin
 done
 
-mkdir -p $LLVM_PREFIX/lib
-cp -Lr $(dirname $(which clang))/../lib/clang/ $LLVM_PREFIX/lib/
-
 ######################################################################
 #   dg
 ######################################################################
