@@ -19,6 +19,10 @@ addons:
       - ubuntu-toolchain-r-test
       - sourceline: 'deb https://apt.kitware.com/ubuntu/ xenial main'
         key_url: 'https://apt.kitware.com/keys/kitware-archive-latest.asc'
+      - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+      - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
     packages:
       - libc6-dev-i386
       - linux-libc-dev
