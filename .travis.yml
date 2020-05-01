@@ -51,6 +51,7 @@ script:
   - sudo ln -s /usr/include/asm-generic /usr/include/asm
   - ./system-build.sh -j8
   - sudo -H pip3 install --upgrade pip
+  - sudo -H pip3 install --ignore-installed PyYAML
   - sudo -H pip3 install benchexec
   - PATH=$PATH:/home/travis/.local/bin
   - cd tests/
