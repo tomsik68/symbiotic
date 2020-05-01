@@ -7,7 +7,7 @@ git:
   depth: 1
 
 env:
-  - LLVM=7
+  - LLVM=6.0
   - LLVM=8
   - LLVM=9
   - LLVM=10
