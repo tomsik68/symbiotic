@@ -39,6 +39,7 @@ script:
   - cd ..
   - sudo ln -s /usr/include/asm-generic /usr/include/asm
   - ./system-build.sh -j8
+  - sudo pip3 install --upgrade pip
   - sudo pip3 install benchexec
   - PATH=$PATH:/home/travis/.local/bin
   - cd tests/
