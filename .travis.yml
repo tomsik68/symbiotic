@@ -7,10 +7,8 @@ git:
   depth: 1
 
 env:
-  - LLVM=6.0
   - LLVM=8
   - LLVM=9
-  - LLVM=10
 
 addons:
   apt:
@@ -39,7 +37,6 @@ addons:
       - wget
 
 compiler:
-  - g++
   - clang
 
 script:
