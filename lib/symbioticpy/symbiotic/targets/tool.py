@@ -89,7 +89,7 @@ class SymbioticBaseTool(object):
             if self._options.property.signedoverflow():
                 # default config file is 'config.json'
                 return ('int_overflows', self._options.overflow_config_file,
-                        'overflows.c', True)
+                        'overflows-no-assert.c', True)
 
             if self._options.property.termination():
                 return ('termination', 'config.json', 'termination.c', True)
@@ -111,7 +111,7 @@ class SymbioticBaseTool(object):
             if self._options.property.signedoverflow():
                 # default config file is 'config.json'
                 return ('int_overflows', self._options.overflow_config_file,
-                        'overflows.c', True)
+                        'overflows-no-assert.c', True)
 
             if self._options.property.termination():
                 return ('termination', 'config.json', 'termination.c', True)
@@ -164,7 +164,7 @@ class SymbioticBaseTool(object):
         if prop.signedoverflow():
             # default config file is 'config.json'
             # slice wrt asserts checking for the overflow
-            return (['__assert_fail'],[])
+            return (['__VERIFIER_error'],[])
 
         return ([],[])
 
