@@ -651,6 +651,7 @@ class SymbioticCC(object):
         # delete-undefined may insert __VERIFIER_make_nondet
         # and also other funs like __errno_location may be included
         self.link_undefined()
+        self.run_opt(['-explicit-consdes'])
 
         # optimize the code after slicing and linking and before verification
         opt = get_optlist_after(self.options.optlevel)
